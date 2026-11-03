@@ -95,7 +95,38 @@ class Chat:
 
 
 def repl(temperature=0.8):
-    """Run a simple interactive chat loop."""
+    """
+    Run a simple interactive chat loop.
+
+    Test scripted input, printed replies, and persistent history.
+
+    >>> first = MagicMock()
+    >>> first.choices[0].message.content = "Ahoy!"
+    >>> second = MagicMock()
+    >>> second.choices[0].message.content = "Welcome back!"
+    >>> inputs = MagicMock(side_effect=["Hello", "Who are you?", EOFError])
+    >>> captured = []
+    >>> responses = iter([first, second])
+    >>> def fake_create(*, messages, model, temperature):
+    ...     captured.append([dict(message) for message in messages])
+    ...     return next(responses)
+    >>> with patch("builtins.input", inputs), patch.object(client.chat.completions, "create", side_effect=fake_create), patch("builtins.print") as output:
+    ...     repl(temperature=0)
+    >>> [call.args[0] for call in output.call_args_list if call.args]
+    ['Ahoy!', 'Welcome back!']
+    >>> captured[1]
+    [{'role': 'system', 'content': 'You are a friendly pirate. Reply like a pirate.'}, {'role': 'user', 'content': 'Hello'}, {'role': 'assistant', 'content': 'Ahoy!'}, {'role': 'user', 'content': 'Who are you?'}]
+
+    KeyboardInterrupt should also exit cleanly.
+
+    >>> inputs = MagicMock(side_effect=["Ahoy", KeyboardInterrupt])
+    >>> reply = MagicMock()
+    >>> reply.choices[0].message.content = "Arr!"
+    >>> with patch("builtins.input", inputs), patch.object(client.chat.completions, "create", return_value=reply), patch("builtins.print"):
+    ...     repl(temperature=0)
+    >>> inputs.call_count
+    2
+    """
     chat = Chat(system="You are a friendly pirate. Reply like a pirate.")
     try:
         while True:
